@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #072a48;
+}
+
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0b426d; }
+::-webkit-scrollbar-thumb { background: #38acf7; border-radius: 3px; }
+
+/* Grade colours */
+.grade-good        { @apply text-grade-good border-grade-good bg-grade-good/10; }
+.grade-acceptable  { @apply text-grade-acceptable border-grade-acceptable bg-grade-acceptable/10; }
+.grade-poor        { @apply text-grade-poor border-grade-poor bg-grade-poor/10; }
+.grade-bad         { @apply text-alarm-critical border-alarm-critical bg-alarm-critical/10; }
+
+/* Pulse animation for live badge */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.live-pulse { animation: live-pulse 1.5s ease-in-out infinite; }
+
+/* Alarm blink */
+@keyframes alarm-blink {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(220, 38, 38, 0.15); }
+}
+.alarm-blink { animation: alarm-blink 1s ease-in-out infinite; }

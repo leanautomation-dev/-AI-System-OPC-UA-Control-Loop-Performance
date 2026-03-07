@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    // disable unused warnings in library code during CI/container build
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    // include Vite's ambient types so ImportMeta.env is recognized
+    "types": ["vite/client"],
+    // skip library checks (e.g. goober, recharts) to avoid third-party errors
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] }
+  },
+  "include": ["src"]
+}

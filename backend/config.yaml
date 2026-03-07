@@ -1,0 +1,155 @@
+opcua:
+  server:
+    # listening endpoint for the simulated OPC-UA server; may be overridden
+    # by environment variable OPCUA_SERVER_ENDPOINT when running in a container.
+    endpoint: "${OPCUA_SERVER_ENDPOINT:opc.tcp://0.0.0.0:4840/clpm/server}"
+    name: "CLPM OPC-UA Server"
+    namespace: "http://localhost/opcua"
+    security_policy: "Basic256Sha256"
+    security_mode: "SignAndEncrypt"
+  client:
+    # Real PLC / historian endpoint — override via env var OPCUA_REAL_ENDPOINT
+    # default points at the local simulation server so tests work out of the box
+    endpoint: "${OPCUA_REAL_ENDPOINT:opc.tcp://localhost:4840/clpm/server}"
+    timeout: 10
+    session_timeout: 3600000
+    publish_interval: 1000        # ms
+    subscription_interval: 500   # ms
+
+  alarms_events:
+    namespace: "http://localhost/ae"
+    retention_hours: 168          # 7 days
+    severity_map:
+      low: 1
+      medium: 500
+      high: 900
+      critical: 1000
+
+  tags:
+    # Each tag is an OPC-UA node that maps to a CLPM controller
+    - node_id: "ns=2;s=PIC-001.PV"
+      controller: "PIC-001"
+      type: "Pressure"
+      description: "Pressure controller PV"
+      eu: "bar"
+      eu_range: [0, 10]
+      deadband: 0.01
+    - node_id: "ns=2;s=PIC-001.SP"
+      controller: "PIC-001"
+      type: "Pressure"
+      description: "Pressure controller SP"
+      eu: "bar"
+      eu_range: [0, 10]
+      deadband: 0.005
+    - node_id: "ns=2;s=PIC-001.CO"
+      controller: "PIC-001"
+      type: "Pressure"
+      description: "Pressure controller CO"
+      eu: "%"
+      eu_range: [0, 100]
+      deadband: 0.1
+    - node_id: "ns=2;s=TIC-101.PV"
+      controller: "TIC-101"
+      type: "Temperature"
+      description: "Temperature controller PV"
+      eu: "°C"
+      eu_range: [0, 200]
+      deadband: 0.5
+    - node_id: "ns=2;s=TIC-101.SP"
+      controller: "TIC-101"
+      type: "Temperature"
+      description: "Temperature controller SP"
+      eu: "°C"
+      eu_range: [0, 200]
+      deadband: 0.1
+    - node_id: "ns=2;s=TIC-101.CO"
+      controller: "TIC-101"
+      type: "Temperature"
+      description: "Temperature controller CO"
+      eu: "%"
+      eu_range: [0, 100]
+      deadband: 0.1
+    - node_id: "ns=2;s=FIC-201.PV"
+      controller: "FIC-201"
+      type: "Flow"
+      description: "Flow controller PV"
+      eu: "m³/h"
+      eu_range: [0, 100]
+      deadband: 0.05
+    - node_id: "ns=2;s=FIC-201.SP"
+      controller: "FIC-201"
+      type: "Flow"
+      description: "Flow controller SP"
+      eu: "m³/h"
+      eu_range: [0, 100]
+      deadband: 0.02
+    - node_id: "ns=2;s=FIC-201.CO"
+      controller: "FIC-201"
+      type: "Flow"
+      description: "Flow controller CO"
+      eu: "%"
+      eu_range: [0, 100]
+      deadband: 0.1
+    - node_id: "ns=2;s=LIC-301.PV"
+      controller: "LIC-301"
+      type: "Level"
+      description: "Level controller PV"
+      eu: "m"
+      eu_range: [0, 5]
+      deadband: 0.02
+    - node_id: "ns=2;s=LIC-301.SP"
+      controller: "LIC-301"
+      type: "Level"
+      description: "Level controller SP"
+      eu: "m"
+      eu_range: [0, 5]
+      deadband: 0.01
+    - node_id: "ns=2;s=LIC-301.CO"
+      controller: "LIC-301"
+      type: "Level"
+      description: "Level controller CO"
+      eu: "%"
+      eu_range: [0, 100]
+      deadband: 0.1
+
+database:
+  url: "${DATABASE_URL:postgresql://streampipes:streampipes@192.168.18.112:5432/streampipes}"
+  pool_size: 20
+  max_overflow: 40
+  pool_timeout: 30
+
+redis:
+  url: "redis://192.168.18.65:6379"
+  stream_key: "opcua:stream"
+  alarm_stream_key: "opcua:alarms"
+  max_len: 100000
+
+api:
+  host: "0.0.0.0"
+  port: 8001
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8088"
+    - "http://localhost:80"
+  jwt_secret: "${JWT_SECRET:change-this-in-production}"
+  jwt_expire_minutes: 1440
+
+superset:
+  url: "${SUPERSET_URL:http://superset:8088}"
+  admin_user: "${SUPERSET_ADMIN:admin}"
+  admin_password: "${SUPERSET_PASSWORD:admin}"
+  database_name: "CLPM TimescaleDB"
+
+ai:
+  anomaly_detection:
+    algorithm: "isolation_forest"
+    contamination: 0.05
+    window_size: 60           # samples
+    retrain_interval: 3600    # seconds
+  clpm_scoring:
+    poor_threshold: 0.4
+    acceptable_threshold: 0.7
+    good_threshold: 0.85
+  alarm_prediction:
+    lookahead_minutes: 15
+    confidence_threshold: 0.75
