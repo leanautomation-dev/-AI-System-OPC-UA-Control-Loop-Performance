@@ -113,13 +113,13 @@ opcua:
       deadband: 0.1
 
 database:
-  url: "${DATABASE_URL:postgresql://streampipes:streampipes@192.168.18.112:5432/streampipes}"
+  url: "${DATABASE_URL:postgresql://streampipes:streampipes@timescaledb:5432/streampipes}"
   pool_size: 20
   max_overflow: 40
   pool_timeout: 30
 
 redis:
-  url: "redis://192.168.18.65:6379"
+  url: "redis://redis:6379"
   stream_key: "opcua:stream"
   alarm_stream_key: "opcua:alarms"
   max_len: 100000

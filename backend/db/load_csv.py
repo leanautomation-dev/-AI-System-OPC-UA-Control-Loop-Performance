@@ -15,10 +15,13 @@ import yaml
 
 log = logging.getLogger(__name__)
 
-with open("../config.yaml") as f:
+config_path = os.path.join(os.path.dirname(__file__), "..", "config.yaml")
+with open(config_path) as f:
     CFG = yaml.safe_load(f)
 
-DB_URL = CFG["database"]["url"].replace("postgresql://", "postgresql+asyncpg://")
+# Use environment variable directly (set in docker-compose.yml)
+# For debugging, hardcode the URL
+DB_URL = "postgresql+asyncpg://streampipes:streampipes@timescaledb:5432/streampipes"
 
 
 async def load(csv_path: str):
@@ -28,42 +31,77 @@ async def load(csv_path: str):
     schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
     async with engine.begin() as conn:
         try:
-            with open(schema_path) as f:
-                sql = f.read()
-            # use exec_driver_sql to allow multiple statements
-            await conn.exec_driver_sql(sql)
-            log.info("Schema applied from %s", schema_path)
+            # Check if schema is already applied
+            result = await conn.execute(text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'opcua_raw_tags')"))
+            schema_exists = result.fetchone()[0]
+            
+            if not schema_exists:
+                # Use raw connection to execute multiple statements
+                raw_conn = await engine.raw_connection()
+                try:
+                    cursor = await raw_conn.cursor()
+                    with open(schema_path) as f:
+                        sql_content = f.read()
+                    await cursor.execute(sql_content)
+                    await raw_conn.commit()
+                    log.info("Schema applied from %s", schema_path)
+                finally:
+                    await raw_conn.close()
+            else:
+                log.info("Schema already exists, skipping schema application")
         except FileNotFoundError:
             log.warning("schema.sql not found, skipping schema creation")
 
-    df = pd.read_csv(csv_path, parse_dates=["timestamp"])
-    df = df.rename(columns={"timestamp": "time"})
+    df = pd.read_csv(csv_path, parse_dates=[0])
+    df = df.rename(columns={df.columns[0]: "time"})
     df["time"] = pd.to_datetime(df["time"], utc=True)
 
-    # Map CSV columns to DB columns
-    col_map = {
-        "time": "time",
-        "controller": "controller",
-        "controller_type": "controller_type",
-        "recipe": "recipe",
-        "pv_mean": "pv_mean",
-        "pv_std": "pv_std",
-        "pv_range": "pv_range",
-        "sp_mean": "sp_mean",
-        "co_mean": "co_mean",
-        "co_std": "co_std",
-        "aae": "aae",
-        "iae": "iae",
-        "co_travel": "co_travel",
-        "pct_auto": "pct_auto",
-        "dominant_mode": "dominant_mode",
-        "oscillation_index": "oscillation_index",
-        "n_samples": "n_samples",
-    }
-    df = df[[c for c in col_map if c in df.columns]]
-    df.columns = [col_map[c] for c in df.columns]
+    # Transform wide format CSV to long format for opcua_raw_tags table
+    # CSV columns are like: "PIC-002.MODE (2D402F04-9434-4840-9861-E24E87BD4F03)"
+    records = []
+    for _, row in df.iterrows():
+        timestamp = row["time"]
+        for col_name, value in row.items():
+            if col_name == "time":
+                continue
+            if pd.isna(value):
+                continue
+                
+            # Parse column name: "CONTROLLER.SIGNAL (NODE_ID)"
+            if " (" in col_name and col_name.endswith(")"):
+                tag_part = col_name[:col_name.rfind(" (")]
+                node_id = col_name[col_name.rfind(" (")+2:-1]
+                
+                if "." in tag_part:
+                    controller, signal = tag_part.split(".", 1)
+                    
+                    # Map signal to tag_type
+                    tag_type_map = {
+                        "PV": "Pressure",  # Default, would need more logic for actual mapping
+                        "SP": "Pressure",
+                        "CO": "Pressure", 
+                        "MODE": "Mode"
+                    }
+                    tag_type = tag_type_map.get(signal, "Unknown")
+                    
+                    record = {
+                        "time": timestamp,
+                        "node_id": node_id,
+                        "controller": controller,
+                        "tag_type": tag_type,
+                        "signal": signal,
+                        "value": float(value) if isinstance(value, (int, float)) and not pd.isna(value) else None,
+                        "status": "Good"
+                    }
+                    
+                    # Only add records with required fields
+                    if controller and signal and node_id:
+                        records.append(record)
 
-    records = df.to_dict(orient="records")
+    log.info(f"Transformed {len(records)} records from CSV data")
+    if records:
+        log.info(f"Sample record: {records[0]}")
+
     chunk_size = 1000
 
     async with engine.begin() as conn:
@@ -71,16 +109,10 @@ async def load(csv_path: str):
             chunk = records[i : i + chunk_size]
             await conn.execute(
                 text("""
-                    INSERT INTO clpm_imported_metrics
-                        (time, controller, controller_type, recipe,
-                         pv_mean, pv_std, pv_range, sp_mean, co_mean, co_std,
-                         aae, iae, co_travel, pct_auto, dominant_mode,
-                         oscillation_index, n_samples)
+                    INSERT INTO opcua_raw_tags
+                        (time, node_id, controller, tag_type, signal, value, status)
                     VALUES
-                        (:time, :controller, :controller_type, :recipe,
-                         :pv_mean, :pv_std, :pv_range, :sp_mean, :co_mean, :co_std,
-                         :aae, :iae, :co_travel, :pct_auto, :dominant_mode,
-                         :oscillation_index, :n_samples)
+                        (:time, :node_id, :controller, :tag_type, :signal, :value, :status)
                     ON CONFLICT DO NOTHING
                 """),
                 chunk,

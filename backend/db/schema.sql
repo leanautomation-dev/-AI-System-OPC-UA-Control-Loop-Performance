@@ -261,7 +261,7 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy(
     'clpm_imported_daily',
-    start_offset => INTERVAL '2 days',
+    start_offset => INTERVAL '3 days',
     end_offset   => INTERVAL '1 day',
     schedule_interval => INTERVAL '6 hours',
     if_not_exists => TRUE
@@ -286,7 +286,7 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy(
     'ai_insights_daily',
-    start_offset => INTERVAL '2 days',
+    start_offset => INTERVAL '3 days',
     end_offset   => INTERVAL '1 day',
     schedule_interval => INTERVAL '3 hours',
     if_not_exists => TRUE

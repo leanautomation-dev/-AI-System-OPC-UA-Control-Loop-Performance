@@ -97,9 +97,11 @@ services:
   # ── CSV Seed (one-shot) ──────────────────────────────────────────────────────
   csv-seed:
     <<: *common-backend
-    command: python db/load_csv.py --csv /data/clpm_metrics.csv
+    command: python db/load_csv.py --csv /data/Data_ControlLoopPerformanceMonitoring.csv
     volumes:
-      - ../clpm_metrics.csv:/data/clpm_metrics.csv:ro
+      - ./backend/db/data.csv:/data/Data_ControlLoopPerformanceMonitoring.csv:ro
+    environment:
+      DATABASE_URL: postgresql://streampipes:streampipes@timescaledb:5432/streampipes
     restart: "no"
     depends_on:
       timescaledb:
@@ -135,7 +137,7 @@ services:
       VITE_SUPERSET_URL: http://superset:8088
 
   # ── Superset Metadata DB ──────────────────────────────────────────────────────
-  superset-db:
+  postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -143,7 +145,7 @@ services:
       POSTGRES_USER: superset
       POSTGRES_PASSWORD: superset_pass
     volumes:
-      - superset_db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U superset -d superset"]
       interval: 10s
@@ -158,14 +160,14 @@ services:
       - "8088:8088"
     environment:
       SUPERSET_SECRET_KEY: clpm-superset-secret-change-in-prod
-      SUPERSET_DB_URI: postgresql+psycopg2://superset:superset_pass@superset-db:5432/superset
+      postgres_URI: postgresql+psycopg2://superset:superset_pass@postgres:5432/superset
       REDIS_URL: redis://redis:6379/1
       DATABASE_URL: postgresql://streampipes:streampipes@timescaledb:5432/streampipes
     volumes:
       - ./superset/superset_config.py:/app/pythonpath/superset_config.py:ro
       - superset_home:/app/superset_home
     depends_on:
-      superset-db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -181,7 +183,7 @@ services:
     restart: "no"
     environment:
       SUPERSET_SECRET_KEY: clpm-superset-secret-change-in-prod
-      SUPERSET_DB_URI: postgresql+psycopg2://superset:superset_pass@superset-db:5432/superset
+      postgres_URI: postgresql+psycopg2://superset:superset_pass@postgres:5432/superset
     volumes:
       - ./superset/superset_config.py:/app/pythonpath/superset_config.py:ro
     command: >
@@ -193,7 +195,7 @@ services:
         superset init
       "
     depends_on:
-      superset-db:
+      postgres:
         condition: service_healthy
 
   # ── Nginx reverse proxy ───────────────────────────────────────────────────────
@@ -213,5 +215,5 @@ services:
 volumes:
   tsdb_data:
   redis_data:
-  superset_db_data:
+  postgres_data:
   superset_home:
