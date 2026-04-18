@@ -4,7 +4,7 @@ import { useTagStore } from '../store/tagStore';
 import { useAlarmStore } from '../store/alarmStore';
 import { useAIStore } from '../store/aiStore';
 
-const WS_BASE = import.meta.env.VITE_API_URL?.replace('http', 'ws') ?? 'ws://localhost:8000';
+const WS_BASE = import.meta.env.DEV ? 'ws://localhost:8000' : window.location.origin.replace('http', 'ws');
 
 export function useOPCUAConnection() {
   const [connected, setConnected] = useState(false);
